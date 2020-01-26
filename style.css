@@ -1,0 +1,18 @@
+html, body {
+    margin: 0;
+}
+
+body {
+    color: #eee;
+    background-color: #1f1f1f;
+    font-family: Helvetica, arial, sans-serif;
+}
+
+#game-canvas {
+    border: 1px solid gray;
+}
+
+.container {
+    max-width: 850px;
+    margin: 0 auto;
+}
