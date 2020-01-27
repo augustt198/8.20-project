@@ -38,6 +38,8 @@ function gameSetup() {
     rocket.img.src = "sprite-spaceship.png";
     rocket.img2 = new Image();
     rocket.img2.src = "sprite-spaceship_boost.png";
+    rocket.img3 = new Image();
+    rocket.img3.src = "sprite-spaceship_rev_boost.png";
     rocket.boost = false
 
     rocket.tick = function(dt) {
@@ -48,7 +50,7 @@ function gameSetup() {
         if (currentkeys[KEYCODE_DOWN]) {
             thrustMod += 1.0;
         }
-        rocket.boost = (thrustMod != 0.0);
+        rocket.boost = thrustMod;
 
         var angular_vel_add = 0.0;
         if (currentkeys[KEYCODE_LEFT]) {
@@ -89,7 +91,14 @@ function gameSetup() {
         ctx.rotate(this.angle);
         ctx.fillStyle = "#fff";
         //ctx.fillRect(-50, -50, 100, 100);
-        var img = this.boost ? this.img2 : this.img;
+        var img;
+        if (this.boost > 0) {
+            img = this.img3;
+        } else if (this.boost < 0) {
+            img = this.img2;
+        } else {
+            img = this.img;
+        }
         ctx.drawImage(img, -img.width/2, -img.height/2);
         ctx.restore();
     };
