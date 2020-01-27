@@ -279,7 +279,7 @@ function drawStars() {
 
                     var clr = Math.max(Math.floor(255 - costheta*200), 0);
 
-                    var wavelength = 490 * gamma * (1 + beta * costheta);
+                    var wavelength = 490 * gamma * (1 - beta * costheta);
 
                     var rgb = wavelengthToRGB(wavelength);
 
