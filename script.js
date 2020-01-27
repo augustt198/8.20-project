@@ -19,7 +19,7 @@ canvas.style.height = canvas.height + "px";
 canvas.width  *= PIXEL_RATIO;
 canvas.height *= PIXEL_RATIO;
 
-var Game = {ctx: ctx, objects: [], gridlines: false, relativity: true};
+var Game = {ctx: ctx, objects: [], gridlines: false, relativity: true, redshift: true};
 
 function gameSetup() {
     var rocket = {};
@@ -178,13 +178,82 @@ function drawRocketRefGridLines() {
     ctx.stroke();
 }
 
+const Gamma_clr = 0.80;
+const IntensityMax_clr = 255;
+
+// https://stackoverflow.com/a/14917481/2498956
+function wavelengthToRGB(Wavelength){
+    var factor;
+    var Red,Green,Blue;
+
+    if((Wavelength >= 380) && (Wavelength<440)){
+        Red = -(Wavelength - 440) / (440 - 380);
+        Green = 0.0;
+        Blue = 1.0;
+    }else if((Wavelength >= 440) && (Wavelength<490)){
+        Red = 0.0;
+        Green = (Wavelength - 440) / (490 - 440);
+        Blue = 1.0;
+    }else if((Wavelength >= 490) && (Wavelength<510)){
+        Red = 0.0;
+        Green = 1.0;
+        Blue = -(Wavelength - 510) / (510 - 490);
+    }else if((Wavelength >= 510) && (Wavelength<580)){
+        Red = (Wavelength - 510) / (580 - 510);
+        Green = 1.0;
+        Blue = 0.0;
+    }else if((Wavelength >= 580) && (Wavelength<645)){
+        Red = 1.0;
+        Green = -(Wavelength - 645) / (645 - 580);
+        Blue = 0.0;
+    }else if((Wavelength >= 645) && (Wavelength<781)){
+        Red = 1.0;
+        Green = 0.0;
+        Blue = 0.0;
+    }else{
+        Red = 0.0;
+        Green = 0.0;
+        Blue = 0.0;
+    };
+
+    // Let the intensity fall off near the vision limits
+
+    if((Wavelength >= 380) && (Wavelength<420)){
+        factor = 0.3 + 0.7*(Wavelength - 380) / (420 - 380);
+    }else if((Wavelength >= 420) && (Wavelength<701)){
+        factor = 1.0;
+    }else if((Wavelength >= 701) && (Wavelength<781)){
+        factor = 0.3 + 0.7*(780 - Wavelength) / (780 - 700);
+    }else{
+        factor = 0.0;
+    };
+
+
+    // Don't want 0^x = 1 for x <> 0
+    var rgb0 = Red==0.0 ? 0 : Math.round(IntensityMax_clr * Math.pow(Red * factor, Gamma_clr));
+    var rgb1 = Green==0.0 ? 0 : Math.round(IntensityMax_clr * Math.pow(Green * factor, Gamma_clr));
+    var rgb2 = Blue==0.0 ? 0 : Math.round(IntensityMax_clr * Math.pow(Blue * factor, Gamma_clr));
+
+    return [rgb0, rgb1, rgb2];
+}
+
 function drawStars() {
     var quadsize = 400;
     var ox = Math.floor(-Game.cameraMatrix[4] / quadsize);
     var oy = Math.floor(-Game.cameraMatrix[5] / quadsize);
 
+    var gamma = Game.objects['rocket'].gamma();
+
     var rpos = Game.objects['rocket'].position;
     var rx = rpos[0], ry = rpos[1];
+
+    var rvel = Game.objects['rocket'].velocity;
+    rvel = [rvel[0], rvel[1]];
+    var mag = Math.sqrt(rvel[0]*rvel[0] + rvel[1]*rvel[1]);
+    rvel[0] /= (mag + 1e-7);
+    rvel[1] /= (mag + 1e-7);
+
+    var beta = mag / C_LIGHT;
 
     for (var qx = ox-4; qx <= ox+5; qx++) {
         for (var qy = oy-4; qy <= oy+5; qy++) {
@@ -199,11 +268,26 @@ function drawStars() {
                 r2 = r2 - Math.floor(r2);
                 var y = qy*quadsize + r2*quadsize;
 
-                var dist = Math.sqrt((rx-x)*(rx-x) + (ry-y)*(ry-y))/10.0;
+                var x_rel = x-rx;
+                var y_rel = y-ry;
 
-                var clr = Math.max(Math.floor(200 - dist), 0);
+                var dist = Math.sqrt(x_rel*x_rel + y_rel*y_rel);
 
-                ctx.fillStyle = "rgb("+clr+","+clr+","+clr+")";
+                if (Game.redshift) {
+                    // rvel already normalized
+                    var costheta = (x_rel*rvel[0] + y_rel*rvel[1])/dist;
+
+                    var clr = Math.max(Math.floor(255 - costheta*200), 0);
+
+                    var wavelength = 490 * gamma * (1 + beta * costheta);
+
+                    var rgb = wavelengthToRGB(wavelength);
+
+                    ctx.fillStyle = "rgb("+rgb[0]+","+rgb[1]+","+rgb[2]+")";
+                } else {
+                    var clr = Math.max(Math.floor(200 - dist/10.0), 0);
+                    ctx.fillStyle = "rgb("+clr+","+clr+","+clr+")";
+                }
                 ctx.fillRect(x, y, 5, 5);
             }
         }
@@ -294,6 +378,10 @@ document.getElementById('opt-gridline').onclick = function(evt) {
 
 document.getElementById('opt-relativity').onclick = function(evt) {
     Game.relativity = this.checked;
+}
+
+document.getElementById('opt-redshift').onclick = function(evt) {
+    Game.redshift = this.checked;
 }
 
 gameSetup();
