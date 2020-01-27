@@ -1,15 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <title>8.20 Project</title>
     <link rel="stylesheet" href="style.css">
     <meta charset="utf-8">
 </head>
 <body>
 
 <div class="container">
-    <h1>8.20 gang 𝛾 = ∞</h1>
+    <div class="header">
+        <span class="title">8.20 Project</span>
+        <span class="author">August Trollbäck / 2020</span>
+    </div>
 
-    <canvas id="game-canvas" width="800" height="500"></canvas>
+    <canvas id="game-canvas" width="900" height="550"></canvas>
+
+    <ul>
+        <li>
+            <b>Options:</b> <input id="opt-gridline" type="checkbox"></input>
+            <label for="opt-gridline">rocket gridlines</label>,
+            <input id="opt-relativity" type="checkbox" checked></input>
+            <label for="opt-relativity">relativity</label>
+
+        </li>
+        <li>
+            <b>Key controls:</b> up/down: accelerate, left/right: rotate
+        </li>
+    </ul>
 </div>
 
 <script src="script.js"></script>

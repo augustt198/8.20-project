@@ -19,12 +19,13 @@ canvas.style.height = canvas.height + "px";
 canvas.width  *= PIXEL_RATIO;
 canvas.height *= PIXEL_RATIO;
 
-var Game = {ctx: ctx, objects: []};
+var Game = {ctx: ctx, objects: [], gridlines: false, relativity: true};
 
 function gameSetup() {
     var rocket = {};
     rocket.clock     = 0.0;
-    rocket.angle = 0.0;
+    rocket.angle     = 0.0;
+    rocket.angular_vel = 0.0;
     rocket.direction = [0.0, 1.0];
     rocket.velocity  = [0.0, 0.0];
     rocket.position  = [0.0, 0.0];
@@ -49,24 +50,36 @@ function gameSetup() {
         }
         rocket.boost = (thrustMod != 0.0);
 
+        var angular_vel_add = 0.0;
         if (currentkeys[KEYCODE_LEFT]) {
-            rocket.angle += Math.PI/20 * dt;
+            angular_vel_add += Math.PI/10;
         }
         if (currentkeys[KEYCODE_RIGHT]) {
-            rocket.angle -= Math.PI/20 * dt;
+            angular_vel_add += - Math.PI/10;
         }
+        var alpha = 0.98;
+        this.angular_vel = alpha*this.angular_vel + (1 - alpha)*angular_vel_add;
 
+        this.angle += this.angular_vel * dt;
+
+        var g = this.gamma();
         accel = thrustMod * this.thrustForce / (this.mass * this.gamma());
 
-        this.velocity[0] = this.velocity[0] + (accel * Math.cos(this.angle+Math.PI/2)) * dt;
-        this.velocity[1] = this.velocity[1] + (accel * Math.sin(this.angle+Math.PI/2)) * dt;
+        var velnew = [0, 0];
+        velnew[0] = this.velocity[0] + (accel * Math.cos(this.angle+Math.PI/2)) * dt;
+        velnew[1] = this.velocity[1] + (accel * Math.sin(this.angle+Math.PI/2)) * dt;
+
+        if (velnew[0]*velnew[0] + velnew[1]*velnew[1] < C_LIGHT*C_LIGHT) {
+            this.velocity[0] = velnew[0];
+            this.velocity[1] = velnew[1];
+        }
 
         this.position[0] = this.position[0] + this.velocity[0] * dt;
         this.position[1] = this.position[1] + this.velocity[1] * dt;
         rocket.clock += dt;
 
-        var cameraOffsetX = -this.position[0] + this.velocity[0]/C_LIGHT*75 + canvas.width/2;
-        var cameraOffsetY = -this.position[1] + this.velocity[1]/C_LIGHT*75 + canvas.height/2;
+        var cameraOffsetX = -this.position[0] + this.velocity[0]/C_LIGHT*125;
+        var cameraOffsetY = -this.position[1] + this.velocity[1]/C_LIGHT*125;
         Game.cameraMatrix = [1.0, 0.0, 0.0, 1.0, cameraOffsetX, cameraOffsetY];
     };
 
@@ -83,19 +96,77 @@ function gameSetup() {
 
     Game.objects['rocket'] = rocket;
 
+    var clock = {};
+    clock.clock    = 0.0;
+    clock.position = [50.0, 50.0];
+    clock.img      = new Image();
+    clock.img.src  = "sprite-clock.png";
+
+    clock.tick = function(dt) {
+        this.clock += dt;
+        var radius = 120;
+        var theta = this.clock / 10;
+        this.position = [radius*Math.cos(theta), radius*Math.sin(theta)];
+    }
+
+    clock.draw = function() {
+        ctx.save();
+        ctx.scale(2, 2);
+        var o = this.img.width/2;
+        ctx.drawImage(this.img, this.position[0]-o, this.position[1]-o);
+        
+        var timestr = (this.clock/5).toFixed(0);
+        ctx.font = '20px courier';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = "#eee";
+        ctx.fillText(timestr, this.position[0]+85-o, this.position[1]+70-o);
+        
+        ctx.restore();
+    }
+
+    Game.objects['clock'] = clock;
+
     for (var k in Game.objects) {
         // attrs for all game objects
         Game.objects[k].gamma = function() {
+            if (!Game.relativity) return 1.0;
             var v_squared = this.velocity[0]*this.velocity[0] +
                             this.velocity[1]*this.velocity[1];
             // naive
             var term = 1 - v_squared / (C_LIGHT*C_LIGHT);
-            if (term <= 0) return Infinity;
-            else return 1.0 / Math.sqrt(term);
+            if (term <= 0) return 1000.0;
+            return 1.0 / Math.sqrt(term);
         }
     }
     
     Game.cameraMatrix = [1.0, 0.0, 0.0, 1.0, canvas.width/2, canvas.height/2];
+}
+
+function drawRocketRefGridLines() {
+    var rpos = Game.objects['rocket'].position;
+    var rx = rpos[0], ry = rpos[1];
+
+    var itv = 100;
+
+    ctx.strokeStyle = "#909";
+    var w = 1000;
+    for (var x = rx - w; x <= rx + w; x += itv) {
+        ctx.beginPath();
+        ctx.moveTo(x - rx%itv, ry-w);
+        ctx.lineTo(x - rx%itv, ry+w);
+        ctx.stroke();
+    }
+    for (var y = ry - w; y <= ry + w; y += itv) {
+        ctx.beginPath();
+        ctx.moveTo(rx-w, y - ry%itv);
+        ctx.lineTo(rx+w, y - ry%itv);
+        ctx.stroke();
+    }
+
+    // draw origin pt
+    ctx.beginPath();
+    ctx.arc(0, 0, 25, 0, 2*Math.PI, false);
+    ctx.stroke();
 }
 
 function drawStars() {
@@ -133,9 +204,10 @@ function drawStars() {
 function drawInfo() {
     ctx.fillStyle = '#777';
     ctx.save();
-    ctx.setTransform(1.5, 0, 0, 1.5, 0, 0);
+    var scale = 2;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
     
-    ctx.fillRect(0, 0, 200, 50);
+    ctx.fillRect(0, 0, 200, 70);
 
     ctx.font = '20px courier';
     ctx.fillStyle = '#eee';
@@ -145,8 +217,12 @@ function drawInfo() {
 
     var vel = Game.objects['rocket'].velocity;
     var speed = Math.sqrt(vel[0]*vel[0] + vel[1]*vel[1]);
-    var betaStr = "β = " + (speed / C_LIGHT).toFixed(3);
+    var betaStr = "β = " + Math.floor(speed / C_LIGHT * 1000) / 1000;
     ctx.fillText(betaStr, 10, 40);
+
+    var time = Game.objects['rocket'].clock / 5;
+    var timeStr = "t = " + time.toFixed(0);
+    ctx.fillText(timeStr, 10, 60);
 
     ctx.restore();
 }
@@ -157,17 +233,11 @@ function gameStep() {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.setTransform(cm[0], cm[1], cm[2], cm[3], cm[4], cm[5]);
-    ctx.scale(1.25, 1.25);
+    var scale = 1.25;
+    ctx.setTransform(1, 0, 0, 1, canvas.width/2, canvas.height/2);
+    ctx.transform(scale, 0, 0, scale, 0, 0);
+    ctx.transform(cm[0], cm[1], cm[2], cm[3], cm[4], cm[5]);
     
-    for (var j = -100; j < 100; j++) {
-        ctx.beginPath();
-        ctx.strokeStyle = "white";
-        ctx.moveTo(-100, j*50);
-        ctx.lineTo(100, j*50);
-        ctx.stroke();
-    }
-
     var gamma = Game.objects['rocket'].gamma();
     for (var k in Game.objects) {
         var dt = 0.1;
@@ -180,7 +250,7 @@ function gameStep() {
     // https://physics.stackexchange.com/a/30168/64994
     ctx.save();
     var vel = Game.objects['rocket'].velocity;
-    var velsq = vel[0]*vel[0] + vel[1]*vel[1] + 1e-7;
+    var velsq = vel[0]*vel[0] + vel[1]*vel[1] + 1e-7; // avoid zero div
     var m11 = (gamma - 1) * (vel[0] * vel[0])/velsq + 1;
     var m12 = (gamma - 1) * (vel[0] * vel[1])/velsq + 0;
     var m21 = m12;
@@ -193,15 +263,28 @@ function gameStep() {
     ctx.transform(m22/det, -m12/det, -m21/det, m11/det, 0, 0);
     ctx.translate(-pos[0], -pos[1]);
     drawStars();
-    ctx.restore();
 
     for (var k in Game.objects) {
-        Game.objects[k].draw();
+        if (k != 'rocket')
+            Game.objects[k].draw();
     }
+    ctx.restore();
+
+    if (Game.gridlines) drawRocketRefGridLines();
+
+    Game.objects['rocket'].draw();
 
     drawInfo();
 
     window.requestAnimationFrame(gameStep);
+}
+
+document.getElementById('opt-gridline').onclick = function(evt) {
+    Game.gridlines = this.checked;
+}
+
+document.getElementById('opt-relativity').onclick = function(evt) {
+    Game.relativity = this.checked;
 }
 
 gameSetup();
